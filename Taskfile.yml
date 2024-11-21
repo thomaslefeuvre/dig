@@ -1,0 +1,33 @@
+version: '3'
+
+vars:
+  entrypoint: main.go
+  output: bin/dig
+
+tasks:
+  clean:
+    cmds:
+      - rm -f {{.output}}
+
+  build:
+    deps:
+      - clean
+    cmds:
+      - go build -o "{{.output}}" "{{.entrypoint}}"
+
+  gmail:
+    deps:
+      - build
+    cmds:
+      - ./{{.output}} -s gmail --save -n 10
+
+  bandcamp:
+    deps:
+      - build
+    cmds:
+      - ./{{.output}} -s bandcamp --save -n 10
+
+  default:
+    deps:
+      - gmail
+      - bandcamp
