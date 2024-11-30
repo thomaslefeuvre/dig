@@ -6,9 +6,9 @@ import (
 	"log"
 	"os"
 
-	"github.com/thomaslefeuvre/bandcamp-tools/bandcamp"
-	"github.com/thomaslefeuvre/bandcamp-tools/dig"
-	"github.com/thomaslefeuvre/bandcamp-tools/gmail"
+	"github.com/thomaslefeuvre/digg/bandcamp"
+	"github.com/thomaslefeuvre/digg/dig"
+	"github.com/thomaslefeuvre/digg/gmail"
 	"github.com/urfave/cli/v2"
 )
 

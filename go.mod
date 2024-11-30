@@ -1,8 +1,8 @@
-module github.com/thomaslefeuvre/bandcamp-tools
+module github.com/thomaslefeuvre/digg
 
-go 1.22.7
+go 1.23.3
 
-toolchain go1.23.2
+toolchain go1.23.3
 
 require (
 	github.com/urfave/cli/v2 v2.27.5

@@ -3,7 +3,7 @@ package dig
 import (
 	"fmt"
 
-	"github.com/thomaslefeuvre/bandcamp-tools/bandcamp"
+	"github.com/thomaslefeuvre/digg/bandcamp"
 )
 
 type Wishlist struct {
