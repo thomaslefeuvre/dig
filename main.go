@@ -74,7 +74,13 @@ func main() {
 			{
 				Name: "open",
 				Flags: []cli.Flag{
-					&cli.Int64Flag{
+					&cli.StringFlag{
+						Name:        "query",
+						Aliases:     []string{"q"},
+						Usage:       "Query to filter collection",
+						DefaultText: "None",
+					},
+					&cli.IntFlag{
 						Name:        "n",
 						DefaultText: "10",
 						Usage:       "Number of items to collect",
@@ -82,16 +88,26 @@ func main() {
 				},
 				Action: func(c *cli.Context) error {
 					n := c.Int("n")
-					if n > maxToOpen {
-						log.Printf("n exceeds maximum of 50, setting n=50")
+					if n == 0 {
+						n = maxToOpen
 					}
+					if n > maxToOpen {
+						log.Printf("n exceeds maximum of %d, setting n=%d\n", maxToOpen, maxToOpen)
+						n = maxToOpen
+					}
+
+					q := c.String("query")
 
 					collection, err := dig.LoadCollection(outDir)
 					if err != nil {
 						log.Fatalln("Unable to load collection")
 					}
 
-					err = collection.OpenInBrowser(n)
+					if q == "" {
+						err = collection.Open(n)
+					} else {
+						err = collection.OpenFilter(q, n)
+					}
 					if err != nil {
 						log.Printf("Unable to open collection in browser: %v", err)
 					}
@@ -139,6 +155,24 @@ func main() {
 					for _, item := range items {
 						fmt.Println(item)
 					}
+
+					return nil
+				},
+			},
+			{
+				Name: "info",
+				Action: func(c *cli.Context) error {
+					collection, err := dig.LoadCollection(outDir)
+					if err != nil {
+						log.Fatalln("Unable to load collection")
+					}
+
+					if collection.Size() == 0 {
+						fmt.Println("Collection is empty")
+						return nil
+					}
+
+					fmt.Println("Collection size:", collection.Size())
 
 					return nil
 				},

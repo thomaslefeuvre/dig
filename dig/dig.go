@@ -114,8 +114,21 @@ func (c *Collection) Save() (filenames []string, err error) {
 	return filenames, nil
 }
 
-func (c *Collection) OpenInBrowser(quantity int) error {
-	urls := c.List(quantity)
+func (c *Collection) Open(n int) error {
+	urls := c.List(n)
+	err := openURLs(urls)
+	if err != nil {
+		return err
+	}
+	c.markOpened(urls)
+	return nil
+}
+
+func (c *Collection) OpenFilter(query string, n int) error {
+	urls := c.Filter(query)
+	if len(urls) > n {
+		urls = urls[:n]
+	}
 	err := openURLs(urls)
 	if err != nil {
 		return err
@@ -140,8 +153,10 @@ func openURLs(urls []string) error {
 // quantity >= 0
 func (c *Collection) List(limit int) []string {
 	items := []string{}
-	for item := range c.Releases {
-		items = append(items, item)
+	for item, opened := range c.Releases {
+		if !opened {
+			items = append(items, item)
+		}
 		if len(items) == limit {
 			break
 		}
@@ -179,20 +194,14 @@ func (d *Dig) UpdateCollection(collection *Collection) *Collection {
 	return collection
 }
 
-func ReleaseURL(url neturl.URL) bool {
-	if strings.HasPrefix(url.Path, "/track") {
-		return true
-	}
-
-	if strings.HasPrefix(url.Path, "/album") {
-		return true
-	}
-
-	return false
-}
-
 func (c *Collection) Size() int {
-	return len(c.Releases)
+	count := 0
+	for _, opened := range c.Releases {
+		if !opened {
+			count++
+		}
+	}
+	return count
 }
 
 func (c *Collection) All() []string {
@@ -201,8 +210,8 @@ func (c *Collection) All() []string {
 
 func (c *Collection) Filter(query string) []string {
 	items := []string{}
-	for url := range c.Releases {
-		if strings.Contains(url, query) {
+	for url, opened := range c.Releases {
+		if strings.Contains(url, query) && !opened {
 			items = append(items, url)
 		}
 	}

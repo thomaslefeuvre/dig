@@ -5,6 +5,10 @@ vars:
   output: bin/digg
 
 tasks:
+  setup:
+    cmds:
+      - alias digg=./bin/digg
+
   clean:
     cmds:
       - rm -f {{.output}}
