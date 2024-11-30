@@ -16,94 +16,133 @@ const (
 	bandcampUsername = "thomaslefeuvre"
 	outDir           = "data"
 	secretDir        = "secrets"
+	maxToOpen        = 50
 )
 
 func main() {
 	ctx := context.Background()
 
 	app := &cli.App{
-		Name:  "dig",
-		Usage: "",
+		Name:  "digg",
+		Usage: "A tool to streamline your digging process.",
 		Flags: []cli.Flag{
-			&cli.Int64Flag{
-				Name:        "n",
-				DefaultText: "10",
-				Usage:       "Number of items to collect",
-			},
 			&cli.BoolFlag{
-				Name:  "save",
-				Value: false,
-			},
-			&cli.BoolFlag{
-				Name:  "open",
-				Value: false,
-			},
-			&cli.StringFlag{
-				Name:    "input",
-				Aliases: []string{"in"},
-			},
-			&cli.StringSliceFlag{
-				Name:    "strategy",
-				Aliases: []string{"s"},
+				Name:    "dry-run",
+				Aliases: []string{"dry", "d"},
+				Usage:   "Do not commit changes to collection.",
 			},
 		},
 		Action: func(c *cli.Context) error {
-			n := c.Int64("n")
-			if n > int64(500) {
-				return fmt.Errorf("n cannot exceed 500")
-			}
+			dryRun := c.Bool("dry-run")
 
-			save := c.Bool("save")
-			open := c.Bool("open")
-
-			inputFile := c.String("input")
-
-			var result *dig.Result
+			var collection *dig.Collection
 			var err error
-			if inputFile != "" {
-				result, err = dig.NewResultFromFile(inputFile)
-				if err != nil {
-					return err
-				}
-			} else {
-				strategies := c.StringSlice("strategy")
-				var collectors []dig.Collector
-				for _, s := range strategies {
-					if s == "gmail" {
-						svc, err := gmail.NewService(ctx, secretDir)
-						if err != nil {
-							return err
-						}
-						collectors = append(collectors, dig.NewGmail(svc))
-					}
-					if s == "bandcamp" {
-						me := &bandcamp.User{Name: bandcampUsername}
-						collectors = append(collectors, dig.NewWishlist(me))
-					}
-				}
-				fmt.Println(n)
-				dig := dig.New(n, collectors...)
-				result, err = dig.Run()
-				if err != nil {
-					return err
-				}
+
+			collection, err = dig.LoadCollection(outDir)
+			if err != nil {
+				log.Printf("No collection exists, creating a new one: %v", err)
+				collection = dig.NewCollection(outDir)
 			}
 
-			if save {
-				_, err := result.Save(outDir)
-				if err != nil {
-					return err
-				}
+			gc, err := gmail.NewService(ctx, secretDir)
+			if err != nil {
+				log.Printf("Unable to create gmail service: %v", err)
+				return err
 			}
 
-			if open {
-				err := result.OpenInBrowser()
+			bc := &bandcamp.User{Name: bandcampUsername}
+
+			collectors := []dig.Collector{dig.NewGmail(gc), dig.NewWishlist(bc)}
+
+			dig := dig.New(collectors...)
+			collection = dig.UpdateCollection(collection)
+
+			if !dryRun {
+				names, err := collection.Save()
 				if err != nil {
-					return err
+					log.Printf("Unable to save collection: %v", err)
+				}
+
+				for _, name := range names {
+					log.Printf("Saved collection to: %v", name)
 				}
 			}
 
 			return nil
+		},
+		Commands: []*cli.Command{
+			{
+				Name: "open",
+				Flags: []cli.Flag{
+					&cli.Int64Flag{
+						Name:        "n",
+						DefaultText: "10",
+						Usage:       "Number of items to collect",
+					},
+				},
+				Action: func(c *cli.Context) error {
+					n := c.Int("n")
+					if n > maxToOpen {
+						log.Printf("n exceeds maximum of 50, setting n=50")
+					}
+
+					collection, err := dig.LoadCollection(outDir)
+					if err != nil {
+						log.Fatalln("Unable to load collection")
+					}
+
+					err = collection.OpenInBrowser(n)
+					if err != nil {
+						log.Printf("Unable to open collection in browser: %v", err)
+					}
+
+					if !c.Bool("dry-run") {
+						_, err := collection.Save()
+						if err != nil {
+							log.Printf("Unable to save collection: %v", err)
+						}
+					}
+
+					return nil
+				},
+			},
+			{
+				Name: "list",
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:        "query",
+						Aliases:     []string{"q"},
+						Usage:       "Query to filter collection",
+						DefaultText: "None",
+					},
+				},
+				Action: func(c *cli.Context) error {
+					query := c.String("q")
+
+					collection, err := dig.LoadCollection(outDir)
+					if err != nil {
+						log.Fatalln("Unable to load collection")
+					}
+
+					if collection.Size() == 0 {
+						fmt.Println("Collection is empty")
+						return nil
+					}
+
+					var items []string
+					if query == "" {
+						items = collection.All()
+					} else {
+						items = collection.Filter(query)
+					}
+
+					for _, item := range items {
+						fmt.Println(item)
+					}
+
+					return nil
+				},
+			},
 		},
 	}
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"regexp"
+	"time"
 
 	"google.golang.org/api/gmail/v1"
 )
@@ -12,7 +13,11 @@ import (
 const (
 	user        = "me"
 	searchQuery = "in:inbox from:noreply@bandcamp.com"
-	maxResults  = 500
+	maxPageSize = 100
+
+	quotaUnitPerSecondPerUser = 250
+	quotaUnitsListMessages    = 5
+	quotaUnitsGetMessage      = 5
 )
 
 var (
@@ -29,46 +34,67 @@ func NewGmail(service *gmail.Service) *Gmail {
 	}
 }
 
-func (g *Gmail) Collect(r *Result) (*Result, error) {
-	if r == nil {
+func (g *Gmail) Collect(c *Collection) (*Collection, error) {
+	if c == nil {
 		return nil, fmt.Errorf("uninitialised result")
 	}
 
-	if r.Full() {
-		return r, nil
-	}
-
-	user := "me"
-	listMsgsReq := g.service.Users.Messages.List(user).Q(searchQuery).MaxResults(maxResults)
-
-	messages, err := listMsgsReq.Do()
+	messages, err := g.ListAllMessages()
 	if err != nil {
-		return nil, fmt.Errorf("retrieve messages: %w", err)
+		return nil, fmt.Errorf("list all messages: %w", err)
 	}
 
-	for _, msg := range messages.Messages {
-		if r.Full() {
-			break
-		}
+	for _, msg := range messages {
 		getMsgReq := g.service.Users.Messages.Get(user, msg.Id)
 		fullMsg, err := getMsgReq.Do()
 		if err != nil {
-			log.Printf("Unable to retrieve message %v: %v", msg.Id, err)
+			log.Printf("unable to retrieve message %v: %v", msg.Id, err)
 			continue
 		}
 
+		log.Printf("retrieved full message %v", msg.Id)
+
 		urls, err := extractURLs(fullMsg)
 		if err != nil {
-			log.Printf("Unable to extract urls from message %v: %v", msg.Id, err)
+			log.Printf("unable to extract urls from message %v: %v", msg.Id, err)
 			continue
 		}
 
 		for _, url := range urls {
-			r.Add(url)
+			c.Add(url)
 		}
+
+		time.Sleep((quotaUnitsGetMessage * time.Second) / quotaUnitPerSecondPerUser)
 	}
 
-	return r, nil
+	return c, nil
+}
+
+func (g *Gmail) ListAllMessages() ([]*gmail.Message, error) {
+	var messages []*gmail.Message
+
+	listMsgsReq := g.service.Users.Messages.List(user).Q(searchQuery).MaxResults(maxPageSize)
+
+	for {
+		msgs, err := listMsgsReq.Do()
+		if err != nil {
+			return nil, fmt.Errorf("retrieve messages: %w", err)
+		}
+
+		log.Printf("retrieved %d Gmail message ids", len(msgs.Messages))
+
+		messages = append(messages, msgs.Messages...)
+
+		if msgs.NextPageToken == "" {
+			break
+		}
+
+		listMsgsReq.PageToken(msgs.NextPageToken)
+
+		time.Sleep((quotaUnitsListMessages * time.Second) / quotaUnitPerSecondPerUser)
+	}
+
+	return messages, nil
 }
 
 func extractURLs(msg *gmail.Message) ([]string, error) {

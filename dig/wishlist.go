@@ -16,26 +16,22 @@ func NewWishlist(user *bandcamp.User) *Wishlist {
 	}
 }
 
-func (b *Wishlist) Collect(r *Result) (*Result, error) {
-	if r == nil {
+func (b *Wishlist) Collect(c *Collection) (*Collection, error) {
+	if c == nil {
 		return nil, fmt.Errorf("uninitialised result")
-	}
-
-	if r.Full() {
-		return r, nil
 	}
 
 	urls, err := b.User.GetWishlist()
 	if err != nil {
-		return r, err
+		return c, err
 	}
 
 	for _, url := range urls {
-		err = r.Add(url)
+		err = c.Add(url)
 		if err != nil {
-			return r, err
+			return c, err
 		}
 	}
 
-	return r, nil
+	return c, nil
 }
