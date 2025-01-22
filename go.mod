@@ -1,6 +1,6 @@
 module github.com/thomaslefeuvre/digg
 
-go 1.23.2
+go 1.23
 
 require (
 	github.com/urfave/cli/v2 v2.27.5
